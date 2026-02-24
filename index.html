@@ -1,0 +1,207 @@
+import React, { useState, useEffect } from 'react';
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Search, Loader2, Pickaxe, Youtube } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import SkinViewer from "@/components/SkinViewer";
+import SkinHistory from "@/components/SkinHistory";
+
+const HISTORY_KEY = 'minecraft_skin_history';
+const MAX_HISTORY = 6;
+
+export default function Home() {
+  const [username, setUsername] = useState('');
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [history, setHistory] = useState([]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(HISTORY_KEY);
+    if (saved) {
+      setHistory(JSON.parse(saved));
+    }
+  }, []);
+
+  const saveToHistory = (username, uuid) => {
+    const newEntry = { username, uuid };
+    const filtered = history.filter(item => item.uuid !== uuid);
+    const updated = [newEntry, ...filtered].slice(0, MAX_HISTORY);
+    setHistory(updated);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+  };
+
+  const clearHistory = () => {
+    setHistory([]);
+    localStorage.removeItem(HISTORY_KEY);
+  };
+
+  const loadFromHistory = (item) => {
+    setUsername(item.username);
+    setResult({ username: item.username, uuid: item.uuid });
+    setError('');
+  };
+
+  const fetchSkin = async () => {
+    if (!username.trim()) return;
+    
+    try {
+      setLoading(true);
+      setError('');
+      setResult(null);
+
+      const res = await fetch(`https://api.ashcon.app/mojang/v2/user/${username.trim()}`);
+      
+      if (!res.ok) {
+        setError('Player not found. Check the username and try again.');
+        return;
+      }
+
+      const data = await res.json();
+      const cleanUuid = data.uuid.replace(/-/g, '');
+      setResult({ username: data.username, uuid: cleanUuid });
+      saveToHistory(data.username, cleanUuid);
+    } catch (err) {
+      setError('Failed to fetch player data. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') fetchSkin();
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 relative overflow-hidden">
+      {/* Ambient background effects */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-emerald-500/5 rounded-full blur-[120px]" />
+        <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-teal-500/5 rounded-full blur-[100px]" />
+        <div className="absolute top-1/2 left-0 w-[300px] h-[300px] bg-cyan-500/5 rounded-full blur-[80px]" />
+      </div>
+
+      {/* Grid pattern overlay */}
+      <div 
+        className="absolute inset-0 pointer-events-none opacity-[0.03]"
+        style={{
+          backgroundImage: `linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)`,
+          backgroundSize: '32px 32px'
+        }}
+      />
+
+      <div className="relative z-10 max-w-3xl mx-auto px-4 sm:px-6 pt-16 sm:pt-24 pb-16">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="text-center mb-12"
+        >
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 mb-6">
+            <Pickaxe className="w-7 h-7 text-emerald-400" />
+          </div>
+          <h1 className="text-4xl sm:text-5xl font-extrabold text-white tracking-tight">
+            Skin <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-400">Grabber</span>
+          </h1>
+          <p className="text-slate-400 mt-3 text-base sm:text-lg max-w-md mx-auto leading-relaxed">
+            Enter a Minecraft username to fetch and download the player's skin.
+          </p>
+        </motion.div>
+
+        {/* Search */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="relative group mb-10"
+        >
+          <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl blur opacity-20 group-hover:opacity-30 transition duration-500" />
+          <div className="relative flex gap-3 bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-3">
+            <Input
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Enter Minecraft username..."
+              className="flex-1 bg-slate-800/50 border-slate-700/50 text-white placeholder:text-slate-500 rounded-xl h-12 px-4 text-base focus-visible:ring-emerald-500/50 focus-visible:border-emerald-500/50"
+            />
+            <Button
+              onClick={fetchSkin}
+              disabled={loading || !username.trim()}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl h-12 px-6 font-semibold shadow-lg shadow-emerald-900/30 transition-all duration-200 disabled:opacity-40"
+            >
+              {loading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <>
+                  <Search className="w-4 h-4 mr-2" />
+                  Search
+                </>
+              )}
+            </Button>
+          </div>
+          </motion.div>
+
+          {/* History */}
+          <SkinHistory 
+          history={history} 
+          onSelect={loadFromHistory}
+          onClear={clearHistory}
+          />
+
+          {/* Error */}
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="mb-8 text-center"
+            >
+              <div className="inline-flex items-center gap-2 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl px-5 py-3 text-sm">
+                <span>⚠</span> {error}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Result */}
+        <AnimatePresence>
+          {result && (
+            <SkinViewer username={result.username} uuid={result.uuid} />
+          )}
+        </AnimatePresence>
+
+        {/* Footer hint */}
+        {!result && !loading && (
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="text-center text-slate-600 text-sm mt-16"
+          >
+            Try searching for <button onClick={() => { setUsername('Notch'); }} className="text-emerald-500/70 hover:text-emerald-400 underline underline-offset-2 transition-colors">Notch</button>, <button onClick={() => { setUsername('Technoblade'); }} className="text-emerald-500/70 hover:text-emerald-400 underline underline-offset-2 transition-colors">Technoblade</button>, or <button onClick={() => { setUsername('Dream'); }} className="text-emerald-500/70 hover:text-emerald-400 underline underline-offset-2 transition-colors">Dream</button>
+          </motion.p>
+        )}
+
+        {/* Footer */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.7 }}
+          className="text-center mt-20 pb-6"
+        >
+          <a
+            href="https://youtube.com/@mythgtminecraft"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 text-slate-500 hover:text-emerald-400 transition-colors group"
+          >
+            <span className="text-sm">made by mythgt</span>
+            <Youtube className="w-5 h-5 group-hover:scale-110 transition-transform" />
+          </a>
+        </motion.div>
+      </div>
+    </div>
+  );
+}
